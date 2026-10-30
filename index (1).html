@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Do'kon</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  body { margin:0; font-family:-apple-system,Roboto,sans-serif;
+    background:var(--tg-theme-bg-color,#fff); color:var(--tg-theme-text-color,#000); padding-bottom:90px; }
+  h2 { margin:14px 12px 6px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:10px; }
+  .card { background:var(--tg-theme-secondary-bg-color,#f2f2f2); border-radius:12px; overflow:hidden; }
+  .card img { width:100%; aspect-ratio:1; object-fit:cover; display:block; background:#ddd; }
+  .info { padding:8px; }
+  .name { font-size:14px; }
+  .price { font-weight:600; margin:4px 0 8px; }
+  .qty { display:flex; align-items:center; justify-content:space-between; }
+  button.add { width:100%; padding:8px; border:0; border-radius:8px;
+    background:var(--tg-theme-button-color,#2481cc); color:var(--tg-theme-button-text-color,#fff); font-size:14px; }
+  .qty button { width:34px; height:34px; border:0; border-radius:8px; font-size:18px;
+    background:var(--tg-theme-button-color,#2481cc); color:var(--tg-theme-button-text-color,#fff); }
+  #form { display:none; padding:12px; }
+  #form input, #form textarea { width:100%; box-sizing:border-box; padding:10px; margin:6px 0;
+    border:1px solid #ccc; border-radius:8px; font-size:16px; }
+  #bar { position:fixed; bottom:0; left:0; right:0; padding:12px; background:var(--tg-theme-bg-color,#fff); }
+  #bar button { width:100%; padding:14px; border:0; border-radius:10px; font-size:16px;
+    background:var(--tg-theme-button-color,#2481cc); color:var(--tg-theme-button-text-color,#fff); }
+</style>
+</head>
+<body>
+<div id="shop"><h2>Mahsulotlar</h2><div class="grid" id="grid"></div></div>
+<div id="form">
+  <h2>Buyurtma</h2>
+  <div id="summary"></div>
+  <input id="phone" type="tel" placeholder="Telefon: +998...">
+  <textarea id="address" rows="3" placeholder="Manzil"></textarea>
+</div>
+<div id="bar"><button id="main">Savatcha bo'sh</button></div>
+
+<script>
+const tg = window.Telegram.WebApp;
+tg.ready(); tg.expand();
+
+// === MAHSULOTLARNI SHU YERDA O'ZGARTIRING ===
+const PRODUCTS = [
+  {id:1, name:"Mahsulot 1", price:100000, photo:"https://example.com/1.jpg"},
+  {id:2, name:"Mahsulot 2", price:150000, photo:"https://example.com/2.jpg"},
+  {id:3, name:"Mahsulot 3", price:200000, photo:"https://example.com/3.jpg"},
+  {id:4, name:"Mahsulot 4", price:250000, photo:"https://example.com/4.jpg"},
+];
+
+const cart = {};
+let step = "shop";
+const fmt = n => n.toLocaleString("ru-RU") + " so'm";
+const total = () => PRODUCTS.reduce((s,p)=>s+(cart[p.id]||0)*p.price,0);
+const count = () => Object.values(cart).reduce((a,b)=>a+b,0);
+
+function render() {
+  document.getElementById("grid").innerHTML = PRODUCTS.map(p => {
+    const q = cart[p.id]||0;
+    const ctl = q
+      ? `<div class="qty"><button onclick="chg(${p.id},-1)">−</button><b>${q}</b><button onclick="chg(${p.id},1)">+</button></div>`
+      : `<button class="add" onclick="chg(${p.id},1)">Savatchaga</button>`;
+    return `<div class="card"><img src="${p.photo}" loading="lazy">
+      <div class="info"><div class="name">${p.name}</div>
+      <div class="price">${fmt(p.price)}</div>${ctl}</div></div>`;
+  }).join("");
+  const b = document.getElementById("main");
+  if (step==="shop") b.textContent = count() ? `Davom etish · ${fmt(total())}` : "Savatcha bo'sh";
+  else b.textContent = "Buyurtmani yuborish";
+}
+function chg(id,d){ cart[id]=Math.max(0,(cart[id]||0)+d); render(); }
+
+document.getElementById("main").onclick = () => {
+  if (step==="shop") {
+    if (!count()) return;
+    step="form";
+    document.getElementById("shop").style.display="none";
+    document.getElementById("form").style.display="block";
+    document.getElementById("summary").innerHTML = PRODUCTS.filter(p=>cart[p.id])
+      .map(p=>`<div>${p.name} × ${cart[p.id]} = ${fmt(p.price*cart[p.id])}</div>`).join("")
+      + `<p><b>Jami: ${fmt(total())}</b></p>`;
+    render();
+  } else {
+    const phone = document.getElementById("phone").value.trim();
+    const address = document.getElementById("address").value.trim();
+    if (!phone || !address) { tg.showAlert("Telefon va manzilni kiriting"); return; }
+    const items = PRODUCTS.filter(p=>cart[p.id]).map(p=>({name:p.name, qty:cart[p.id], sum:p.price*cart[p.id]}));
+    tg.sendData(JSON.stringify({items, total: total(), phone, address}));
+  }
+};
+render();
+</script>
+</body>
+</html>
